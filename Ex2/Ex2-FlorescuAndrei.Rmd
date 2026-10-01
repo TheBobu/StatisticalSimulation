@@ -5,6 +5,10 @@ date: "2024"
 output: pdf_document
 ---
 
+## Table of contents
+
+- [Statistical Simulation project index](../README.md)
+
 # 1. Linear Congruential Random Number Generation Algorithm
 
 ```{r, echo=TRUE}

@@ -7,6 +7,10 @@ output:
     latex_engine: xelatex
 ---
 
+## Table of contents
+
+- [Statistical Simulation project index](../README.md)
+
 # Task 1
 
 ```{r, echo=TRUE}

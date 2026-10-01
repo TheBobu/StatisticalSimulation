@@ -5,6 +5,10 @@ date: "2024"
 output: pdf_document
 ---
 
+## Table of contents
+
+- [Statistical Simulation project index](../README.md)
+
 # Task 1
 
 ```{r, echo=TRUE}

@@ -4,6 +4,11 @@ author: "Florescu Andrei - 12242987"
 date: "2025"
 output: pdf_document
 ---
+
+## Table of contents
+
+- [Statistical Simulation project index](../README.md)
+
 # Setup
 ```{r, echo=TRUE}
 set.seed(12242987)
