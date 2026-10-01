@@ -1,0 +1,87 @@
+---
+title: "Exercise 8 - Introduction to Bayesian Inference"
+author: "Florescu Andrei - 12242987"
+date: "2024"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+# Task 1
+```{r, echo=TRUE}
+set.seed(12242987)
+library(knitr)
+```
+
+## 1. Build a Beta prior distribution for this Binomial scenario, which encodes the information of the German study. Reweight with a factor of 1/10.
+```{r, echo=TRUE}
+alpha_prior <- (1 + 4) / 10
+beta_prior <- (4068 - 4 + 1) / 10
+
+x <- seq(0, 0.01, length.out = 1000)
+prior_density <- dbeta(x, alpha_prior, beta_prior)
+```
+
+## 2. Build the corresponding Binomial model for the number of people suffering from the disease based on the 1279 test. Obtain the theoretical posterior distribution for this scenario.
+```{r, echo=TRUE}
+n_austria <- 1279
+positives_austria <- 0
+alpha_post <- alpha_prior + positives_austria
+beta_post <- beta_prior + n_austria
+
+x <- seq(0, 0.01, length.out = 1000)
+posterior_density <- dbeta(x, alpha_post, beta_post)
+```
+
+## 3. Plot the posterior density and obtain the point estimators and 95% Highest posterior density interval of the prevalence of Covid19 (=proportion of inhabitants suffering from the disease).
+```{r, echo=TRUE}
+library(ggplot2)
+data <- data.frame(x = x, density = posterior_density)
+ggplot(data, aes(x = x, y = density)) +
+    geom_line(color = "blue", size = 1.2) +
+    labs(
+        title = "Beta Posterior Distribution",
+        x = "Proportion Infected",
+        y = "Density"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10)
+    )
+# point estimators
+mean <- alpha_post / (alpha_post + beta_post)
+median <- qbeta(0.5, alpha_post, beta_post)
+mode <- if (alpha_post > 1) (alpha_post - 1) / (alpha_post + beta_post - 2) else 0
+
+# prevalence interval
+prevalence_interval <- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+```
+
+### Point estimators
+Mean 
+```{r, echo=TRUE}
+mean
+```
+
+Median
+```{r, echo=TRUE}
+median
+```
+
+Mode
+```{r, echo=TRUE}
+mode
+```
+
+95% prevalence interval
+```{r, echo=TRUE}
+cat("[", prevalence_interval[1], ", ", prevalence_interval[2], "]\n")
+```
+
+## 4. Explain why Statistik Austria chose this method instead of simulationbased or frequentist inference for obtaining intervals of the prevalence.
+
+Statistik Austria likely chose this Bayesian inference because it incorporates prior information from the 
+German study, and also because this makes available the point estimators and prevalence interval. 
+The frequentist approach doesn't incorporate prior information.

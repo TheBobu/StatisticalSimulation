@@ -1,0 +1,312 @@
+---
+title: "Exercise 7 - Comparing penalized regression estimators"
+author: "Florescu Andrei - 12242987"
+date: "2024"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+# Task 1
+```{r, echo=TRUE}
+set.seed(12242987)
+library(knitr)
+```
+
+## 1. Write your own function for the lasso using the shooting algorithm
+```{r, echo=TRUE}
+soft_threshold <- function(z, gamma) {
+  return(sign(z) * max(0, abs(z) - gamma))
+}
+
+lasso_shooting <- function(X, y, lambda, tol = 0.000001, max_iter = 1000) {
+  n <- nrow(X)
+  p <- ncol(X)
+  X_mean <- colMeans(X)
+  y_mean <- mean(y)
+  X_centered <- scale(X, center = TRUE, scale = FALSE)
+  y_centered <- y - y_mean
+
+  # initialize coefs
+  beta <- rep(0, p)
+  beta_old <- beta
+
+  #### Shooting algorithm ####
+
+  # compute a_j (2 * sum(x_ij^2))
+  a <- 2 * colSums(X_centered^2)
+
+  for (iter in 1:max_iter) {
+    for (j in 1:p) {
+      # compute c_j
+      r <- y_centered - X_centered %*% beta + beta[j] * X_centered[, j]
+      c_j <- 2 * sum(X_centered[, j] * r)
+
+      # soft update
+      beta[j] <- soft_threshold(c_j / a[j], lambda / a[j])
+    }
+
+    # check for stopping
+    if (max(abs(beta - beta_old)) < tol) {
+      break
+    }
+    beta_old <- beta
+  }
+
+  # compute intercept
+  intercept <- y_mean - sum(X_mean * beta)
+
+  # return coefficients, intercept and nr of iterations
+  return(list(intercept = intercept, coefficients = beta, iterations = iter))
+}
+
+## test to see if it works
+n <- 100
+p <- 5
+X <- matrix(rnorm(n * p), n, p)
+true_beta <- c(1, -5, -3, 2, 1) # random values selected as coefs
+y <- X %*% true_beta + rnorm(n)
+lambda <- 0.5
+result <- lasso_shooting(X, y, lambda)
+result
+```
+
+## 2. Write a function which computes the lasso using your algorithm for a vector of lambdas
+```{r, echo=TRUE}
+lasso_for_lamda_vector <- function(X, y, lambda_vector, tol = 0.000001, max_iter = 1000) {
+  beta_matrix <- matrix(0, nrow = ncol(X)+1, ncol = length(lambda_vector))
+  for (i in 1:length(lambda_vector)) { # nolint: seq_linter.
+    lambda <- lambda_vector[i]
+    result <- lasso_shooting(X, y, lambda, tol, max_iter)
+    beta_matrix[, i] <- c(result$intercept, result$coefficients)
+  }
+  return(list(coefficients = beta_matrix, lambda = lambda_vector))
+}
+
+# test for a sample lambda vector
+lambda_vector <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+result <- lasso_for_lamda_vector(X, y, lambda_vector)
+result
+
+```
+
+## 3. Compare the performance and output of your functions against the lasso implementation from glmnet. 
+```{r, echo=TRUE}
+library(glmnet)
+library(microbenchmark)
+shooting_result <- lasso_for_lamda_vector(X, y, lambda_vector)
+
+# Fit LASSO Using glmnet
+glmnet_result <- glmnet(X, y, alpha = 1, lambda = lambda_vector, standardize = TRUE, intercept = TRUE)
+
+# Compare Coefficients
+cat("Comparison of Coefficients (Shooting vs glmnet):\n")
+shooting_coef <- shooting_result$coefficients[-1, ] # Exclude intercept
+glmnet_coef <- as.matrix(coef(glmnet_result))[-1, ] # Exclude intercept
+```
+### Shooting lasso coefficients
+```{r, echo=TRUE}
+shooting_coef
+```
+### glmnet coefficients
+```{r, echo=TRUE}
+glmnet_coef
+```
+### Execution time comparison
+```{r, echo=TRUE}
+benchmark_result <- microbenchmark(
+  Shooting = lasso_for_lamda_vector(X, y, lambda_vector),
+  glmnet = glmnet(X, y, alpha = 1, lambda = lambda_vector, standardize = TRUE, intercept = TRUE),
+  times = 10
+)
+benchmark_result
+```
+
+## 4. Write a function to perform 10-fold cross-validation for the lasso using MSE as the performance measure. 
+
+### lasso shooting results
+```{r, echo=TRUE}
+cv_lasso_shooting <- function(X, y, lambda_vec, folds = 10, tol = 1e-6, max_iter = 1000) {
+  n <- nrow(X)
+  fold_ids <- sample(rep(1:folds, length.out = n)) # random fold ids
+  n_lambda <- length(lambda_vec)
+  mse_matrix <- matrix(0, nrow = folds, ncol = n_lambda)
+
+  ### CV ###
+  for (k in 1:folds) {
+    # split data
+    train_index <- which(fold_ids != k)
+    test_index <- which(fold_ids == k)
+
+    X_train <- X[train_index, , drop = FALSE]
+    y_train <- y[train_index]
+    X_test <- X[test_index, , drop = FALSE]
+    y_test <- y[test_index]
+
+    # calculate lasso
+    shooting_result <- lasso_for_lamda_vector(X_train, y_train, lambda_vec, tol, max_iter)
+
+    # get coefs and intercept
+    betas <- shooting_result$coefficients[-1, ] # Coefficients
+    intercepts <- shooting_result$coefficients[1, ] # Intercepts
+
+    # predict on test set and calculate mse
+    for (l in 1:n_lambda) {
+      y_pred <- intercepts[l] + X_test %*% betas[, l]
+      mse_matrix[k, l] <- mean((y_test - y_pred)^2)
+    }
+  }
+
+  # average mse at the end
+  avg_mse <- colMeans(mse_matrix)
+
+  # get lambda with lowest mse and rmse
+  lambda_min_mse <- lambda_vec[which.min(avg_mse)]
+  rmse <- sqrt(avg_mse)
+  lambda_min_rmse <- lambda_vec[which.min(rmse)]
+
+  # plot mse vs Lambda
+  plot(log(lambda_vec), avg_mse,
+    type = "b", pch = 19, col = "blue",
+    xlab = "log(Lambda)", ylab = "Mean Squared Error (MSE)", main = "10-Fold Cross-Validation"
+  )
+  abline(v = log(lambda_min_mse), col = "red", lty = 2)
+  abline(v = log(lambda_min_rmse), col = "green", lty = 2)
+  legend("topright",
+    legend = c("MSE", "Min MSE", "Min RMSE"),
+    col = c("blue", "red", "green"), lty = c(1, 2, 2), pch = c(19, NA, NA), cex = 0.8
+  )
+
+  # return results
+  list(
+    lambda_min_mse = lambda_min_mse,
+    lambda_min_rmse = lambda_min_rmse,
+    mse = avg_mse,
+    rmse = rmse,
+    lambda = lambda_vec
+  )
+}
+
+cv_result <- cv_lasso_shooting(X, y, lambda_vector)
+cv_result
+
+lambda_vec <- seq(0.1, 1, by = 0.1)
+cv_result <- cv_lasso_shooting(X, y, lambda_vec)
+cv_result
+```
+
+### glmnet results
+
+```{r, echo=TRUE}
+cv_glmnet <- cv.glmnet(X, y, alpha = 1, lambda = lambda_vec, nfolds = 10)
+plot(cv_glmnet, main = "glmnet cv")
+```
+
+# Task 2
+```{r, echo=TRUE}
+library(ISLR)
+# open dataset
+data("Hitters")
+df <- na.omit(Hitters)
+y <- df$Salary
+X <- model.matrix(Salary ~ ., data = df)[, -1]
+
+# split data 70/30
+train_index <- sample(1:n, size = 0.7 * n)
+X_train <- X[train_index, ]
+X_test <- X[-train_index, ]
+y_train <- y[train_index]
+y_test <- y[-train_index]
+
+kable(head(df), caption = "Hitters dataset (head)")
+```
+
+## 1. Use your lasso function to decide which lambda is best here. Plot also the whole path for the coefficients.
+```{r, echo=TRUE}
+lambda_vector <- seq(0.1, 1, by = 0.1)
+result <- lasso_for_lamda_vector(X_train, y_train, lambda_vector)
+beta_matrix <- result$coefficients[-1, ] # exclude intercept
+lambda_values <- result$lambda
+plot(log(lambda_values), beta_matrix[1, ], type = "l", col = 1, lwd = 2,
+     xlab = "log(Lambda)", ylab = "Coefficients", main = "LASSO Coefficient Paths")
+for (j in 2:nrow(beta_matrix)) {
+  lines(log(lambda_values), beta_matrix[j, ], col = j, lwd = 2)
+}
+
+result
+
+mse_test <- numeric(length(lambda_values))
+for (i in 1:length(lambda_values)) { # nolint
+  lambda <- lambda_values[i]
+  result_lasso <- lasso_shooting(X_train, y_train, lambda)
+  intercept <- result_lasso$intercept
+  beta <- result_lasso$coefficients
+  y_pred <- intercept + X_test %*% beta
+  mse_test[i] <- mean((y_test - y_pred)^2)
+}
+
+# find the best lambda
+best_lambda <- lambda_values[which.min(mse_test)]
+best_coefficients <- beta_matrix[, which.min(mse_test)]
+best_lambda
+```
+
+## 2. Compare your fit against the lasso implementation from glmnet.
+```{r, echo=TRUE}
+result_glmnet <- glmnet(X_train, y_train, alpha = 1, lambda = lambda_vector, standardize = TRUE, intercept = TRUE)
+lambda_min_glmnet <- result_glmnet$lambda.min
+lambda_min_glmnet
+```
+
+## 3. Fit also a ridge regression and a least squares regression for the data (you can use here glmnet).
+```{r, echo=TRUE}
+cv_fit_ridge <- cv.glmnet(X, y, alpha = 0, nfolds = 10)
+lambda_min_ridge <- cv_fit_ridge$lambda.min
+best_coef_ridge <- coef(cv_fit_ridge, s = lambda_min_ridge)
+lambda_min_ridge
+
+lm_fit <- lm(y ~ ., data = data.frame(X, y))
+
+```
+
+## 4. Compute the lasso, ridge regression and ls regression predictions for the testing data. Which method gives the better predictions? Interpret all three models and argue about their performances.
+```{r, echo=TRUE}
+# our lasso
+lasso_model <- lasso_shooting(X_train, y_train, best_lambda)
+lasso_pred <- lasso_model$intercept + X_test %*% lasso_model$coefficients
+
+# ridge
+ridge_model <- glmnet(X_train, y_train, alpha = 0, lambda = best_lambda, standardize = TRUE)
+ridge_pred <- predict(ridge_model, s = best_lambda, newx = X_test)
+
+# ls
+ls_model <- lm(y_train ~ ., data = as.data.frame(X_train))
+ls_pred <- predict(ls_model, newdata = as.data.frame(X_test))
+
+# mse for each model
+mse_lasso <- mean((y_test - lasso_pred)^2)
+mse_ridge <- mean((y_test - ridge_pred)^2)
+mse_ls <- mean((y_test - ls_pred)^2)
+mse_df <- data.frame(
+  Model = c("LASSO", "Ridge Regression", "Least Squares"),
+  MSE = c(mse_lasso, mse_ridge, mse_ls)
+)
+kable(mse_df, caption = "Model comparison MSE")
+```
+
+# Task 3
+
+**Regularized** regression means adding a penalty term to the loss function in order to
+prevent overfitting. This penalty is supposed to penalize large coefficients meaning 
+the model is more likely to generalize easier
+
+**Shrinkage** is a technique that aims to reduce the coefficients of the model to avoid 
+overfitting and make the model simpler. To remove the coefficients we introduce a penalty 
+term that forces some coefficients to be closer to zero.
+
+**The main difference between Lasso and Ridge** is the penalty term, where lasso uses
+the absolute value of beta (L1 regularization), whereas ridge uses beta squared in the penalty term (L2 regularization).
+Lasso can drive some coefficients to exactly zero as opposed to ridge which may reduce 
+some coefficients closer to zero but not exactly zero, therefore lasso is more focused on 
+feature selection (shrinkage). Ridge on the other hand is more focused on using most if not 
+all coefficients but in a generalized manner, making sure the model does not have very large coeficients.

@@ -1,0 +1,244 @@
+---
+title: "Exercise 1 - Introduction to Simulation with Variance Estimation"
+author: "Florescu Andrei - 12242987"
+date: "2024"
+output: pdf_document
+---
+# Setup
+
+## Set seed
+
+```{r, echo=TRUE}
+set.seed(12242987)
+```
+
+## Datasets
+
+```{r, echo=TRUE}
+x1 <- rnorm(100)
+x2 <- rnorm(100, mean = 1000000)
+```
+
+# 1. Algorithm function implementations
+
+## Algorithm 1 - (two - pass algorithm - variance calculation in R)
+```{r, echo=TRUE}
+precise_var <- function(data) {
+    sample_mean <- mean(data)
+    sum <- sum((data - sample_mean)^2)
+    variance <- sum / (length(data) - 1)
+    return(variance)
+}
+```
+
+## Algorithm 2 - (one - pass algorithm - previously variance calculation in Excel)
+```{r, echo=TRUE}
+excel_var <- function(data) {
+    p1 <- sum(data^2)
+    p2 <- (sum(data)^2) / length(data)
+    variance <- (p1 - p2) / (length(data) - 1)
+    return(variance)
+}
+```
+
+## Algorithm 3 - (shifted one - pass algorithm):
+```{r, echo=TRUE}
+shifted_var <- function(data, c) {
+    p1 <- sum((data - c)^2)
+    p2 <- sum(data - c)^2 / length(data)
+    variance <- (p1 - p2) / (length(data) - 1)
+    return(variance)
+}
+```
+
+
+## Algorithm 4 - (online):
+```{r, echo=TRUE}
+online_var <- function(data) {
+    sample_mean <- mean(data[1:2])
+    sum <- sum((data[1:2] - sample_mean)^2)
+    variance <- sum / (length(data[1:2]) - 1)
+
+    for (i in 3:length(data)) {
+        sample_mean1 <- sample_mean
+        sample_mean <- sample_mean + (data[i] - sample_mean) / i
+        variance <- (i - 2) * variance / (i - 1) + ((data[i] - sample_mean1)^2) / i
+    }
+
+    return(variance)
+}
+```
+
+## Algorithm function wrappper
+
+```{r, echo=TRUE}
+compute_variance <- function(data, type) {
+    result <- switch(type,
+        "precise" = precise_var(data),
+        "excel" = excel_var(data),
+        "shifted" = shifted_var(data, data[1]),
+        "online" = online_var(data),
+        "var" = var(data)
+    )
+    return(result)
+}
+```
+
+## Call each compute variance
+
+```{r, echo=TRUE}
+precise1 <- compute_variance(x1, "precise")
+precise2 <- compute_variance(x2, "precise")
+excel1 <- compute_variance(x1, "excel")
+excel2 <- compute_variance(x2, "excel")
+shifted1 <- compute_variance(x1, "shifted")
+shifted2 <- compute_variance(x2, "shifted")
+online1 <- compute_variance(x1, "online")
+online2 <- compute_variance(x2, "online")
+rvar1 <- compute_variance(x1, "var")
+rvar2 <- compute_variance(x2, "var")
+```
+
+### Variance comparison using all.equal
+
+```{r, echo=TRUE}
+all.equal(precise1, excel1, shifted1, online1, rvar1)
+all.equal(precise2, excel2, shifted2, online2, rvar2)
+```
+
+### Variance comparison for x1 using ==
+
+```{r, echo=TRUE}
+variables1 <- c(precise1, excel1, shifted1, online1)
+names <- c("precise", "excel", "shifted", "online")
+comparison_matrix1 <- matrix(variables1 == rvar1, nrow = 1)
+colnames(comparison_matrix1) <- names
+rownames(comparison_matrix1) <- "R var function"
+print(comparison_matrix1)
+```
+
+### Variance comparison for x2 using ==
+
+```{r, echo=TRUE}
+variables2 <- c(precise2, excel2, shifted2, online2)
+comparison_matrix2 <- matrix(variables2 == rvar2, nrow = 1)
+colnames(comparison_matrix2) <- names
+rownames(comparison_matrix2) <- "R var function"
+print(comparison_matrix2)
+```
+
+### Variance comparison for x1 using identical
+
+```{r, echo=TRUE}
+names <- c("precise", "excel", "shifted", "online")
+comparison_matrix1 <- matrix(sapply(variables1, function(x) identical(x, rvar1)), nrow = 1)
+colnames(comparison_matrix1) <- names
+rownames(comparison_matrix1) <- "R var function"
+print(comparison_matrix1)
+```
+
+### Variance comparison for x2 using identical
+
+```{r, echo=TRUE}
+comparison_matrix2 <- matrix(sapply(variables2, function(x) identical(x, rvar2)), nrow = 1)
+colnames(comparison_matrix2) <- names
+rownames(comparison_matrix2) <- "R var function"
+print(comparison_matrix2)
+```
+
+We can see that using == and identical yields the same results for comparing these variances.
+We can also see that all.equal returned TRUE for both datasets even though this is not right.
+Therefore we can conclude that it's more feasable to use == operator or the identical function
+to compare results.
+Another thing to note is that the only algorithm that returned the same result as the 
+R var function is the shifted algorithm. The precise algorithm returned the same value only once,
+and the rest didn't return the same exact result in either case.
+
+```{r, echo=TRUE}
+variables1 <- c(variables1, rvar1)
+variables2 <- c(variables2, rvar2)
+names <- c(names, "R var")
+result <- matrix(c(variables1, variables2), nrow = 2)
+colnames(result) <- names
+rownames(result) <- c("mean=0", "mean=1000000")
+print(result)
+```
+
+# 2. Compare computational performance
+
+```{r, echo=TRUE, fig.width=6,fig.height=6}
+library(microbenchmark)
+
+benchmark_result <- microbenchmark(
+    compute_variance(x1, "precise"),
+    compute_variance(x1, "excel"),
+    compute_variance(x1, "shifted"),
+    compute_variance(x1, "online"),
+    compute_variance(x1, "var"),
+    times = 1000L
+)
+
+print(benchmark_result)
+par(las = 2)
+boxplot(benchmark_result)
+```
+
+From the boxplot we can see that the slowest algorithm is the online one while the 
+fastest algorithm is the excel one. We can also see that the times are closer to 
+each other for precise and online while for the rest they have more scattered runtimes.
+
+# 3. Scale invariance property
+
+```{r, echo=TRUE}
+variances <- c(
+    shifted_var(x1, x1[1]),
+    shifted_var(x1, 1),
+    shifted_var(x1, 100000),
+    shifted_var(x1, mean(x1)),
+    var(x1)
+)
+comparison_matrix <- matrix(variances, nrow = 1)
+names <- c("x1[1]", "1", "1000", "mean", "R var function")
+colnames(comparison_matrix) <- names
+rownames(comparison_matrix) <- "Variance of x1"
+print(comparison_matrix)
+
+benchmark_result <- microbenchmark(
+    shifted_var(x1, x1[1]),
+    shifted_var(x1, 1),
+    shifted_var(x1, 100000),
+    shifted_var(x1, mean(x1)),
+    var(x1)
+)
+print(benchmark_result)
+par(las = 2)
+boxplot(benchmark_result)
+```
+
+
+# 4. Condition numbers
+
+```{r, echo=TRUE}
+calculate_condition_number <- function(data) {
+    S <- sum((data - mean(data))^2)
+    k <- sqrt(1 + (mean(data)^2) * length(data) / S)
+    return(k)
+}
+
+calculate_condition_number_shifted <- function(data, c) {
+    S <- sum((data - mean(data))^2)
+    k <- sqrt(1 + ((mean(data) - c)^2) * length(data) / S)
+    return(k)
+}
+
+calculate_condition_number(x1)
+calculate_condition_number(x2)
+calculate_condition_number_shifted(x1, mean(x1))
+calculate_condition_number_shifted(x2, mean(x1))
+
+x3 <- sample(1:1000000, 100, replace = TRUE)
+calculate_condition_number(x3)
+calculate_condition_number_shifted(x3, 0.1)
+```
+
+</div></pre>

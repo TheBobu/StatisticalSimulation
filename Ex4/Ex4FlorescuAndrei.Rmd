@@ -1,0 +1,507 @@
+---
+title: "Exercise 4 - Sample distribution and Central Limit Theorem"
+author: "Florescu Andrei - 12242987"
+date: "2024"
+output: pdf_document
+---
+
+# Task 1
+
+```{r, echo=TRUE}
+set.seed(12242987)
+data_points <- c(4.94, 5.06, 4.53, 5.07, 4.99, 5.16, 4.38, 4.43, 4.93, 4.72, 4.92, 4.96) # nolint
+```
+
+## 1. Number of possible bootstrap samples
+
+Since every position can take value as any of the data points and the number of available positions is
+12, therefore:   
+\[
+    Total\_bootstrap\_samples = 12^{12}
+\]
+```{r, echo=TRUE}
+12**12
+```
+
+## 2. Mean and the median of the original sample
+Mean:
+```{r, echo=TRUE}
+mean_data <- mean(data_points)
+mean_data
+```
+Median:
+```{r, echo=TRUE}
+median_data <- median(data_points)
+median_data
+```
+
+## 3. Create 2000 bootstrap samples and compute their means
+```{r, echo=TRUE}
+num_samples <- 2000
+n <- length(data_points)
+bootstrap_means <- replicate(
+    num_samples,
+    mean(sample(data_points, n, replace = TRUE))
+)
+
+head(bootstrap_means)
+```
+
+### 1. Compute the mean on the first 20 bootstrap means
+```{r, echo=TRUE}
+mean_20 <- mean(bootstrap_means[1:20])
+mean_20
+```
+### 2. Compute the mean of the first 200 bootstrap means
+```{r, echo=TRUE}
+mean_200 <- mean(bootstrap_means[1:200])
+mean_200
+```
+### 3. Compute the mean based on all 2000 bootstrap means
+```{r, echo=TRUE}
+mean_2000 <- mean(bootstrap_means)
+mean_2000
+```
+### 4. Visualise the distribution all the different bootstrap means
+
+```{r, echo=TRUE}
+library(ggplot2)
+
+ggplot(
+    data.frame(bootstrap_means[1:20]),
+    aes(x = bootstrap_means[1:20])
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = mean_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    geom_vline(
+        xintercept = mean_20,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Means",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+
+ggplot(
+    data.frame(bootstrap_means[1:200]),
+    aes(x = bootstrap_means[1:200])
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = mean_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    geom_vline(
+        xintercept = mean_200,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Means",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+
+
+ggplot(
+    data.frame(bootstrap_means),
+    aes(x = bootstrap_means)
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = mean_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    geom_vline(
+        xintercept = mean_2000,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 0.8
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Means",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+```
+
+We can see that the central limit theorem kicks in because if we increase the number
+of samples, the distribution is closer to a normal distribution.
+
+### 5. Based on the three different bootstrap sample lengths compute the corresponding 0.025 and 0.975 quantiles
+```{r, echo=TRUE}
+quantiles_20 <- quantile(bootstrap_means[1:20], probs = c(0.025, 0.975))
+quantiles_200 <- quantile(bootstrap_means[1:200], probs = c(0.025, 0.975))
+quantiles_2000 <- quantile(bootstrap_means, probs = c(0.025, 0.975))
+
+quantiles_20
+quantiles_200
+quantiles_2000
+
+t_test <- t.test(data_points, conf.level = 0.95)
+
+true_ci <- t_test$conf.int
+
+true_ci
+
+list(
+    Quantiles_20 = quantiles_20,
+    Quantiles_200 = quantiles_200,
+    Quantiles_2000 = quantiles_2000,
+    True_CI = true_ci
+)
+```
+
+## 4. Create 2000 bootstrap samples and compute their medians
+```{r, echo=TRUE}
+num_samples <- 2000
+n <- length(data_points)
+bootstrap_medians <- replicate(
+    num_samples,
+    median(sample(data_points, n, replace = TRUE))
+)
+
+head(bootstrap_medians)
+```
+
+### 1. Compute the median on the first 20 bootstrap medians
+```{r, echo=TRUE}
+median_20 <- median(bootstrap_medians[1:20])
+median_20
+```
+### 2. Compute the median of the first 200 bootstrap medians
+```{r, echo=TRUE}
+median_200 <- median(bootstrap_medians[1:200])
+median_200
+```
+### 3. Compute the median based on all 2000 bootstrap medians
+```{r, echo=TRUE}
+median_2000 <- median(bootstrap_medians)
+median_2000
+```
+### 4. Visualise the distribution all the different bootstrap medians
+
+```{r, echo=TRUE}
+library(ggplot2)
+
+ggplot(
+    data.frame(bootstrap_medians[1:20]),
+    aes(x = bootstrap_medians[1:20])
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = median_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = median_20,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Medians",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+
+ggplot(
+    data.frame(bootstrap_medians[1:200]),
+    aes(x = bootstrap_medians[1:200])
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = median_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = median_200,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Medians",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+
+
+ggplot(
+    data.frame(bootstrap_medians),
+    aes(x = bootstrap_medians)
+) +
+    geom_histogram(binwidth = 0.01, color = "black", fill = "lightblue") +
+    geom_vline(
+        xintercept = median_data,
+        color = "red",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = median_2000,
+        color = "blue",
+        linetype = "dashed",
+        linewidth = 1
+    ) +
+    labs(
+        title = "Distribution of Bootstrap Medians",
+        x = "Bootstrap Means",
+        y = "Frequency"
+    ) +
+    theme_minimal()
+```
+
+
+### 5. Based on the three different bootstrap sample lengths compute the corresponding 0.025 and 0.975 quantiles
+```{r, echo=TRUE}
+quantiles_20 <- quantile(bootstrap_medians[1:20], probs = c(0.025, 0.975))
+quantiles_200 <- quantile(bootstrap_medians[1:200], probs = c(0.025, 0.975))
+quantiles_2000 <- quantile(bootstrap_medians, probs = c(0.025, 0.975))
+
+quantiles_20
+quantiles_200
+quantiles_2000
+
+t_test <- t.test(data_points, conf.level = 0.95)
+
+true_ci <- t_test$conf.int
+
+true_ci
+
+list(
+    Quantiles_20 = quantiles_20,
+    Quantiles_200 = quantiles_200,
+    Quantiles_2000 = quantiles_2000,
+    True_CI = true_ci
+)
+```
+
+
+# Task 2
+
+## 1. Generate x.clean, x.cont and x
+```{r, echo=TRUE}
+set.seed(1234)
+x.clean <- rnorm(1960, mean = 0, sd = 1)
+x.cont <- runif(40, min = 4, max = 5)
+x <- c(x.clean, x.cont)
+set.seed(12242987)
+head(x)
+```
+
+## 2. Estimate the median, the mean and the trimmed mean with alpha = 0.05 for x and x.clean.
+
+Estimations for x:
+```{r, echo=TRUE}
+median_x <- median(x)
+mean_x <- mean(x)
+trimmed_mean_x <- mean(x, trim = 0.05)
+```
+
+Estimations for x.clean:
+
+```{r, echo=TRUE}
+median_x_clean <- median(x.clean)
+mean_x_clean <- mean(x.clean)
+trimmed_mean_x_clean <- mean(x.clean, trim = 0.05)
+```
+
+
+## 3. Use nonparametric bootstrap (for x and x.clean)
+```{r, echo=TRUE}
+non_param_bootstrap <- function(data, stat_function, N = 2000, trim = NULL) {
+    n <- length(data)
+    boot_stats <- numeric(N)
+
+    for (i in 1:N) {
+        sample_data <- sample(data, size = n, replace = TRUE)
+        if (!is.null(trim)) {
+            boot_stats[i] <- stat_function(sample_data, trim = trim)
+        } else {
+            boot_stats[i] <- stat_function(sample_data)
+        }
+    }
+
+    std_err <- sd(boot_stats)
+
+    conf_int <- quantile(boot_stats, probs = c(0.025, 0.975))
+
+    list(boot_stats = boot_stats, se = std_err, ci = conf_int)
+}
+
+datasets <- list(x = x, x_clean = x.clean)
+
+results <- lapply(datasets, function(data) {
+    list(
+        median = non_param_bootstrap(data, median),
+        mean = non_param_bootstrap(data, mean),
+        trimmed_mean = non_param_bootstrap(data, mean, trim = 0.05)
+    )
+})
+
+result_summary <- lapply(results, function(estimates) {
+    sapply(estimates, function(res) {
+        c(SE = res$se, CI_Lower = res$ci[1], CI_Upper = res$ci[2])
+    })
+})
+result_summary
+```
+
+Here i created a function that returns the stats requested for a bootstraped dataset. As parameters the function
+receives the data used, the estimation function to be used and the number of samples (trim is optional for a trimmed mean).
+Then i applied this function on each dataset and for each estimation function and displayed the results
+
+## 4.
+```{r, echo=TRUE}
+parametric_bootstrap <- function(data, stat_function, B = 2000, trim = NULL, robust = FALSE) {
+  n <- length(data)
+  
+  mu_hat <- mean(data)
+  if (robust) {
+    sigma <- mad(data)  # use mad for robust scale estimation
+  } else {
+    sigma <- sd(data)
+  }
+  
+  boot_stats <- numeric(B)
+  for (i in 1:B) {
+    boot_sample <- rnorm(n, mean = mu_hat, sd = sigma) # sample randomly from normal dist
+    if (!is.null(trim)) {
+      boot_stats[i] <- stat_function(boot_sample, trim = trim)
+    } else {
+      boot_stats[i] <- stat_function(boot_sample)
+    }
+  }
+  
+  obs_stat <- if (!is.null(trim)) {
+    stat_function(data, trim = trim)
+  } else {
+    stat_function(data)
+  }
+  
+  # calculate bootstrap bias, standard error and percentile confidence interval
+  bias <- mean(boot_stats) - obs_stat
+  se <- sd(boot_stats)
+  ci <- quantile(boot_stats, probs = c(0.025, 0.975))
+  bias_corrected <- obs_stat - bias
+  
+  list(
+    Observed = obs_stat,
+    Bias = bias,
+    SE = se,
+    CI = ci,
+    Bias_Corrected = bias_corrected
+  )
+}
+
+results <- list(
+  x = list(
+    Mean = parametric_bootstrap(x, mean, robust = FALSE),
+    Trimmed_Mean = parametric_bootstrap(x, mean, trim = 0.05, robust = FALSE),
+    Mean_Robust = parametric_bootstrap(x, mean, robust = TRUE),
+    Trimmed_Mean_Robust = parametric_bootstrap(x, mean, trim = 0.05, robust = TRUE)
+  ),
+  x_clean = list(
+    Mean = parametric_bootstrap(x.clean, mean, robust = FALSE),
+    Trimmed_Mean = parametric_bootstrap(x.clean, mean, trim = 0.05, robust = FALSE),
+    Mean_Robust = parametric_bootstrap(x.clean, mean, robust = TRUE),
+    Trimmed_Mean_Robust = parametric_bootstrap(x.clean, mean, trim = 0.05, robust = TRUE)
+  )
+)
+results
+```
+
+## 5.
+```{r, echo=TRUE}
+library(knitr)
+# combine results for 3. into a single data frame
+result_df <- do.call(rbind, lapply(names(results), function(dataset) {
+  do.call(rbind, lapply(names(results[[dataset]]), function(stat) {
+    res <- results[[dataset]][[stat]]
+    data.frame(
+      Dataset = dataset,
+      Statistic = stat,
+      Observed = res$Observed,
+      Bias = res$Bias,
+      Standard_Error = res$SE,
+      CI_Lower = res$CI[1],
+      CI_Upper = res$CI[2],
+      Bias_Corrected = res$Bias_Corrected
+    )
+  }))
+}))
+
+kable(result_df, caption = "Non Parametric Bootstrap Results Summary")
+
+format_results <- function(res, dataset_name, stat_name) {
+  data.frame(
+    Dataset = dataset_name,
+    Statistic = stat_name,
+    Observed = res$Observed,
+    Bias = res$Bias,
+    Standard_Error = res$SE,
+    CI_Lower = res$CI[1],
+    CI_Upper = res$CI[2],
+    Bias_Corrected = res$Bias_Corrected
+  )
+}
+
+# combine results for 4. into a single data frame
+result_df <- do.call(rbind, lapply(names(results), function(dataset) {
+  do.call(rbind, lapply(names(results[[dataset]]), function(stat) {
+    format_results(results[[dataset]][[stat]], dataset, stat)
+  }))
+}))
+kable(result_df, caption = "Parametric Bootstrap Results Summary")
+```
+
+# Task 3
+
+Boostraping is a great tool to resample data by using the given data to estimate the 
+sampling distribution. For non parametric boostraping the methodology can be described 
+as follows:
+
+1. We chose a statistic function to use (in our cases we used the mean, median and trimmed mean)
+
+2. We resampled n data points from the original dataset and we generated it 2000 times
+
+3. We computed the statistics for each boostrap sample resulting in boostrap estimates
+
+4. Then we computed the confidence intervals and the standard deviation
+
+For the parametric boostraping the methodology is described as follows:
+
+1. We chose a statistic function to use (this time we used only mean and trimmed mean)
+
+2. We assumed the data follows a statistic distribution (the normal distribution in our case)
+
+3. As a standard deviation we used either the classical standard deviation function or the MAD (if robust)
+
+4. We resampled n data points from the original dataset 2000 times
+
+5. We computed the statistics for each sample resulting in the boostrap estimates
+
+6. Then we computed the bias, standard error, 95 percentile CI and bias corrected estimate

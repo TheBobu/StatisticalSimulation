@@ -1,0 +1,432 @@
+---
+title: "Exercise 6 - Cross Validation of Models"
+author: "Florescu Andrei - 12242987"
+date: "2024"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+# Task 1
+```{r, echo=TRUE}
+library(ISLR)
+library(knitr)
+
+data(Auto)
+set.seed(12242987)
+
+kable(head(Auto), caption = "Auto dataset (head)")
+```
+
+## 1. Fit multiple models
+```{r, echo=TRUE}
+# fit models
+model1 <- lm(mpg ~ horsepower, data = Auto)
+model2 <- lm(mpg ~ poly(horsepower, 2), data = Auto)
+model3 <- lm(mpg ~ poly(horsepower, 3), data = Auto)
+
+# predict
+hp_seq <- seq(min(Auto$horsepower), max(Auto$horsepower), length.out = 500)
+pred1 <- predict(model1, newdata = data.frame(horsepower = hp_seq))
+pred2 <- predict(model2, newdata = data.frame(horsepower = hp_seq))
+pred3 <- predict(model3, newdata = data.frame(horsepower = hp_seq))
+model_preds <- data.frame(
+  horsepower = hp_seq,
+  model1 = pred1,
+  model2 = pred2,
+  model3 = pred3
+)
+
+library(ggplot2)
+library(tidyr)
+model_preds_long <- pivot_longer(model_preds, cols = -horsepower, names_to = "Model", values_to = "mpg")
+
+# plot
+ggplot(Auto, aes(x = horsepower, y = mpg)) +
+  geom_point(color = "blue", alpha = 0.6) + # scatterplot
+  geom_line(data = model_preds_long, aes(x = horsepower, y = mpg, color = Model), linewidth = 1) + # model lines
+  labs(
+    title = "Models Comparison on MPG vs Horsepower",
+    x = "horsepower",
+    y = "mpg",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+## 2. Use the validation set approach to compare the models for 50/50 split and 70/30 split.
+```{r, echo=TRUE}
+compute_metrics <- function(actual, predicted) {
+  mse <- mean((actual - predicted)^2)
+  rmse <- sqrt(mse)
+  mad <- median(abs(actual - predicted))
+  list(MSE = mse, RMSE = rmse, MAD = mad)
+}
+```
+### Split the data using a 50/50 split
+```{r, echo=TRUE}
+# split data
+n <- nrow(Auto)
+split_ratio <- 0.5
+train_indices <- sample(1:n, size = floor(split_ratio * n))
+train_data <- Auto[train_indices, ]
+test_data <- Auto[-train_indices, ]
+
+# train
+model1 <- lm(mpg ~ horsepower, data = train_data)
+model2 <- lm(mpg ~ poly(horsepower, 2), data = train_data)
+model3 <- lm(mpg ~ poly(horsepower, 3), data = train_data)
+pred1 <- predict(model1, newdata = test_data)
+pred2 <- predict(model2, newdata = test_data)
+pred3 <- predict(model3, newdata = test_data)
+
+# comute metrics
+metrics1 <- compute_metrics(test_data$mpg, pred1)
+metrics2 <- compute_metrics(test_data$mpg, pred2)
+metrics3 <- compute_metrics(test_data$mpg, pred3)
+
+metrics_df_50 <- data.frame(
+  Model = c("Linear", "Quadratic", "Cubic"),
+  MSE = c(metrics1$MSE, metrics2$MSE, metrics3$MSE),
+  RMSE = c(metrics1$RMSE, metrics2$RMSE, metrics3$RMSE),
+  MAD = c(metrics1$MAD, metrics2$MAD, metrics3$MAD)
+)
+kable(metrics_df_50, caption = "Model metrics comparison 50/50 split")
+```
+
+For the 50/50 split we can see based on the mse, rmse and mad that the best model is 
+the cubic model because it has the lowest metrics
+
+### Split the data using a 70/30 split
+```{r, echo=TRUE}
+# split data
+n <- nrow(Auto)
+split_ratio <- 0.7
+train_indices <- sample(1:n, size = floor(split_ratio * n))
+train_data <- Auto[train_indices, ]
+test_data <- Auto[-train_indices, ]
+
+# train
+model1 <- lm(mpg ~ horsepower, data = train_data)
+model2 <- lm(mpg ~ poly(horsepower, 2), data = train_data)
+model3 <- lm(mpg ~ poly(horsepower, 3), data = train_data)
+pred1 <- predict(model1, newdata = test_data)
+pred2 <- predict(model2, newdata = test_data)
+pred3 <- predict(model3, newdata = test_data)
+
+# comute metrics
+metrics1 <- compute_metrics(test_data$mpg, pred1)
+metrics2 <- compute_metrics(test_data$mpg, pred2)
+metrics3 <- compute_metrics(test_data$mpg, pred3)
+
+metrics_df_70 <- data.frame(
+  Model = c("Linear", "Quadratic", "Cubic"),
+  MSE = c(metrics1$MSE, metrics2$MSE, metrics3$MSE),
+  RMSE = c(metrics1$RMSE, metrics2$RMSE, metrics3$RMSE),
+  MAD = c(metrics1$MAD, metrics2$MAD, metrics3$MAD)
+)
+kable(metrics_df_70, caption = "Model metrics comparison 70/30 split")
+```
+
+For the 70/30 split the best model is the Quadratic model because it has the lowest 
+score on two out of the three metrics, and is followed closely in performance 
+by the cubic model.
+
+## 3. Use the cv.glm function in the boot package for leave one out cross validation and k fold cross validation
+```{r, echo=TRUE}
+library(boot)
+model1 <- glm(mpg ~ horsepower, data = Auto)
+model2 <- glm(mpg ~ poly(horsepower, 2), data = Auto)
+model3 <- glm(mpg ~ poly(horsepower, 3), data = Auto)
+```
+
+Leave one out cross Validation
+
+```{r, echo=TRUE}
+loocv_model1 <- cv.glm(Auto, model1)
+loocv_model2 <- cv.glm(Auto, model2)
+loocv_model3 <- cv.glm(Auto, model3)
+
+loocv_results <- data.frame(
+  Model = c("Linear", "Quadratic", "Cubic"),
+  Error = c(loocv_model1$delta[1], loocv_model2$delta[1], loocv_model3$delta[1])
+)
+kable(loocv_results, caption = "Leave one out cross validation metrics comparison")
+```
+
+In this scenario we can conclude that the best model would be the quadratic model
+
+### 5-fold and 10-fold cross validation
+
+```{r, echo=TRUE}
+kfold5_model1 <- cv.glm(Auto, model1, K = 5)
+kfold5_model2 <- cv.glm(Auto, model2, K = 5)
+kfold5_model3 <- cv.glm(Auto, model3, K = 5)
+
+kfold10_model1 <- cv.glm(Auto, model1, K = 10)
+kfold10_model2 <- cv.glm(Auto, model2, K = 10)
+kfold10_model3 <- cv.glm(Auto, model3, K = 10)
+
+kfold_results <- data.frame(
+  Model = c("Linear", "Quadratic", "Cubic"),
+  `5-Fold CV Error` = c(kfold5_model1$delta[1], kfold5_model2$delta[1], kfold5_model3$delta[1]),
+  `10-Fold CV Error` = c(kfold10_model1$delta[1], kfold10_model2$delta[1], kfold10_model3$delta[1])
+)
+kable(kfold_results, caption = "K fold cross validation metrics comparison")
+```
+
+In the case of 5-fold CV we can say that the best model is the quadratic model, but for
+10-fold validation the best model would be the cubic model
+
+## 4. Compare all results from 2 and 3. in a table and draw your conclusions.
+
+```{r, echo=TRUE}
+kable(metrics_df_50, caption = "Model metrics comparison 50/50 split")
+kable(metrics_df_70, caption = "Model metrics comparison 70/30 split")
+kable(loocv_results, caption = "Leave one out cross validation metrics comparison")
+kable(kfold_results, caption = "K fold cross validation metrics comparison")
+```
+
+Overall in most cases the best model is the Quadratic model, followed very closely in 
+performance by the cubic model. The worst performing model was the linear model
+
+# Task 2
+```{r, echo=TRUE}
+data(economics)
+kable(head(economics), caption = "economics dataset (head)")
+```
+
+## 1. Fit multiple models
+
+### Linear models
+```{r, echo=TRUE}
+lm1 <- lm(unemploy ~ uempmed, data = economics)
+summary(lm1)
+lm2 <- lm(uempmed ~ unemploy, data = economics)
+summary(lm2)
+```
+
+### Exponential and logarithmic models
+```{r, echo=TRUE}
+log_lm1 <- lm(log(unemploy) ~ uempmed, data = economics)
+summary(log_lm1)
+
+log_lm2 <- lm(log(uempmed) ~ unemploy, data = economics)
+summary(log_lm2)
+
+exp_lm1 <- lm(uempmed ~ log(unemploy), data = economics)
+summary(exp_lm1)
+
+exp_lm2 <- lm(unemploy ~ log(uempmed), data = economics)
+summary(exp_lm2)
+```
+
+### Polynomial models
+
+```{r, echo=TRUE}
+# models for unemploy ~ uempmed
+poly2_lm1 <- lm(unemploy ~ poly(uempmed, 2), data = economics)
+summary(poly2_lm1)
+poly3_lm1 <- lm(unemploy ~ poly(uempmed, 3), data = economics)
+summary(poly3_lm1)
+poly10_lm1 <- lm(unemploy ~ poly(uempmed, 10), data = economics)
+summary(poly10_lm1)
+
+# models for uempmed ~ unemploy
+poly2_lm2 <- lm(uempmed ~ poly(unemploy, 2), data = economics)
+summary(poly2_lm2)
+
+poly3_lm2 <- lm(uempmed ~ poly(unemploy, 3), data = economics)
+summary(poly3_lm2)
+
+poly10_lm2 <- lm(uempmed ~ poly(unemploy, 10), data = economics)
+summary(poly10_lm2)
+```
+
+## 2. Plot the models
+### Plot for unemploy ~ uempmed models
+```{r, echo=TRUE}
+library(tidyr)
+
+uempmed_seq <- seq(min(economics$uempmed), max(economics$uempmed), length.out = 500)
+df <- data.frame(uempmed = uempmed_seq)
+
+model_preds <- data.frame(
+  uempmed = uempmed_seq,
+  lm1 = predict(lm1, newdata = df),
+  log_lm1 = predict(log_lm1, newdata = df),
+  exp_lm2 = predict(exp_lm2, newdata = df),
+  poly2_lm1 = predict(poly2_lm1, newdata = df),
+  poly3_lm1 = predict(poly3_lm1, newdata = df),
+  poly10_lm1 = predict(poly10_lm1, newdata = df)
+)
+
+model_preds_long <- pivot_longer(model_preds, cols = -uempmed, names_to = "Model", values_to = "unemploy")
+
+# Plot
+ggplot(economics, aes(x = uempmed, y = unemploy)) +
+  geom_point(color = "blue", alpha = 0.6) + # Scatter plot
+  geom_line(data = model_preds_long, aes(x = uempmed, y = unemploy, color = Model), linewidth = 1) + # Model lines
+  labs(
+    title = "Models Comparison on unemploy ~ uempmed",
+    x = "uempmed",
+    y = "unemploy",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+Based on the graph i think the best model could be the exponential model
+
+### Plot for uempmed ~ unemploy models
+
+```{r, echo=TRUE}
+library(tidyr)
+
+unemploy_seq <- seq(min(economics$unemploy), max(economics$unemploy), length.out = 500)
+df <- data.frame(unemploy = unemploy_seq)
+
+model_preds <- data.frame(
+  unemploy = unemploy_seq,
+  lm2 = predict(lm2, newdata = df),
+  log_lm2 = predict(log_lm2, newdata = df),
+  exp_lm1 = predict(exp_lm1, newdata = df),
+  poly2_lm2 = predict(poly2_lm2, newdata = df),
+  poly3_lm2 = predict(poly3_lm2, newdata = df),
+  poly10_lm2 = predict(poly10_lm2, newdata = df)
+)
+
+model_preds_long <- pivot_longer(model_preds, cols = -unemploy, names_to = "Model", values_to = "uempmed")
+
+# Plot
+ggplot(economics, aes(x = unemploy, y = uempmed)) +
+  geom_point(color = "blue", alpha = 0.6) + # Scatter plot
+  geom_line(data = model_preds_long, aes(x = unemploy, y = uempmed, color = Model), linewidth = 1) + # Model lines
+  labs(
+    title = "Models Comparison on uempmed ~ unemploy",
+    x = "unemploy",
+    y = "uempmed",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+Based on the graph i think the best model could be the cubic polynomial model
+
+## 3. Use the cv.glm function in the boot package
+```{r, echo=TRUE}
+cv_rmse_mse <- function(model, data, K) {
+  cv_result <- cv.glm(data, model, K = K)
+  mse <- mean(cv_result$delta)
+  rmse <- sqrt(mse)
+  return(list(MSE = mse, RMSE = rmse))
+}
+
+models <- list(
+  lm1 = glm(unemploy ~ uempmed, data = economics),
+  lm2 = glm(uempmed ~ unemploy, data = economics),
+  log_lm1 = glm(log(unemploy) ~ uempmed, data = economics),
+  log_lm2 = glm(log(uempmed) ~ unemploy, data = economics),
+  exp_lm1 = glm(uempmed ~ log(unemploy), data = economics),
+  exp_lm2 = glm(unemploy ~ log(uempmed), data = economics),
+  poly2_lm1 = glm(unemploy ~ poly(uempmed, 2), data = economics),
+  poly3_lm1 = glm(unemploy ~ poly(uempmed, 3), data = economics),
+  poly10_lm1 = glm(unemploy ~ poly(uempmed, 10), data = economics),
+  poly2_lm2 = glm(uempmed ~ poly(unemploy, 2), data = economics),
+  poly3_lm2 = glm(uempmed ~ poly(unemploy, 3), data = economics),
+  poly10_lm2 = glm(uempmed ~ poly(unemploy, 10), data = economics)
+)
+
+
+```
+
+### LOOCV results
+
+```{r, echo=TRUE}
+library(dplyr)
+cv_results_loo <- lapply(models, function(model) {
+  cv_rmse_mse(model, economics, K = nrow(economics))
+})
+
+cv_results_df <- bind_rows(
+  lapply(names(cv_results_loo), function(model_name) {
+    result <- cv_results_loo[[model_name]]
+    data.frame(
+      Model = model_name,
+      MSE = result$MSE,
+      RMSE = result$RMSE
+    )
+  })
+)
+kable(cv_results_df, caption = "LOOCV results")
+```
+
+We get the best performance with the logarithmic models
+
+### 5 fold CV
+```{r, echo=TRUE}
+cv_results_5fold <- lapply(models, function(model) {
+  cv_result <- cv.glm(economics, model, K = 5)  # 5-fold cross-validation
+  mse <- mean(cv_result$delta)
+  rmse <- sqrt(mse)
+  return(list(MSE = mse, RMSE = rmse))
+})
+
+cv_results_df <- bind_rows(
+  lapply(names(cv_results_5fold), function(model_name) {
+    result <- cv_results_5fold[[model_name]]
+    data.frame(
+      Model = model_name,
+      MSE = result$MSE,
+      RMSE = result$RMSE
+    )
+  })
+)
+kable(cv_results_df, caption = "5 fold CV results")
+```
+
+We get the best performance with the logarithmic models
+
+### 10 fold CV
+
+```{r, echo=TRUE}
+cv_results_10fold <- lapply(models, function(model) {
+  cv_result <- cv.glm(economics, model, K = 10)  # 10-fold cross-validation
+  mse <- mean(cv_result$delta)
+  rmse <- sqrt(mse)
+  return(list(MSE = mse, RMSE = rmse))
+})
+
+cv_results_df <- bind_rows(
+  lapply(names(cv_results_10fold), function(model_name) {
+    result <- cv_results_10fold[[model_name]]
+    data.frame(
+      Model = model_name,
+      MSE = result$MSE,
+      RMSE = result$RMSE
+    )
+  })
+)
+kable(cv_results_df, caption = "5 fold CV results")
+```
+
+We get the best performance with the logarithmic models and also some good performance 
+with the polynomial models
+
+## 4. Explain based on the CV and graphical model fits the concepts of Underfitting, Overfitting and how to apply cross-validation to determine the appropriate model fit.
+
+Underfitting occurs when a model is too simple meaning it has not learned enough 
+from the data or is too general, resulting in poor performance on both training 
+and test data.
+
+Overfitting occurs when a model is too complex meaning it has learned the training 
+data too well and cannot generalize on unseen cases (test data), in other words 
+performing with a very high accuracy on the training set but with a poor accuracy
+on the testing set.
+
+Cross validation allows us to test the models on different subsets of the data 
+and is a good way to prevent Underfitting and Overfitting. LOOCV leaves only one entry
+as testing data, while K fold CV leaves 1 fold out of the K folds as testing data and 
+trains on the remaining K-1 folds. These methods were also very usefull in figuring 
+out way faster which model fits the data better by having the ability to compute
+the metrics we wanted very fast.

@@ -1,0 +1,94 @@
+---
+title: "Exercise 10 - Bayesian Non-parametrics and Bayesian Bootstrapping"
+author: "Florescu Andrei - 12242987"
+date: "2025"
+output: pdf_document
+---
+# Setup
+```{r, echo=TRUE}
+set.seed(12242987)
+library(knitr)
+library(DPpackage)
+```
+
+# Simulate data
+```{r, echo=TRUE}
+n <- 500
+x <- runif(n, 0, 1)
+y <- sapply(x, function(xi) {
+  if (runif(1) < exp(-2 * xi)) {
+    rnorm(1, mean = 0, sd = 0.1)
+  } else {
+    rnorm(1, mean = xi^2, sd = 0.2)
+  }
+})
+data <- data.frame(x = x, y = y)
+kable(head(data), caption = "Generated data")
+```
+
+# Fit the DPdensity model
+
+```{r, echo=TRUE}
+# Define hyperparameters
+prior <- list(
+  a0 = 10,
+  b0 = 1,
+  nu1 = 4,
+  nu2 = 4,
+  m2 = c(0, 0), # mean vector for the prior distribution
+  s2 = diag(2), # covariance matrix for the prior
+  psiinv2 = solve(diag(2)), # inverse covariance matrix
+  tau1 = 6.01,
+  tau2 = 3.01
+)
+
+# MCMC parameters
+mcmc <- list(
+  nburn = 5000, # burn-in period
+  nsave = 5000, # number of samples to save
+  nskip = 4, # thinning interval
+  ndisplay = 100 # display every 100 iterations
+)
+fit <- DPdensity(
+  y = y,
+  prior = prior,
+  mcmc = mcmc,
+  state = NULL,
+  status = TRUE
+)
+```
+
+# Plot results
+```{r, echo=TRUE}
+y_grid <- seq(min(y), max(y), length.out = 100) # grid for evaluating densities
+
+# compute conditional densities
+x_values <- c(0.1, 0.25, 0.5, 0.75) # values of x to evaluate
+density_results <- lapply(x_values, function(x_val) {
+  # weights
+  weights <- exp(-2 * x_val)
+
+  # component densities
+  y1_density <- dnorm(y_grid, mean = 0, sd = 0.1) # Component 1
+  y2_density <- dnorm(y_grid, mean = x_val^2, sd = 0.2) # Component 2
+
+  # combined density
+  conditional_density <- weights * y1_density + (1 - weights) * y2_density
+
+  list(grid = y_grid, density = conditional_density)
+})
+
+par(mfrow = c(2, 2))
+for (i in seq_along(x_values)) {
+  plot(
+    density_results[[i]]$grid, density_results[[i]]$density,
+    type = "l", col = "blue", lwd = 2,
+    xlab = "y", ylab = "Density",
+    main = paste("Density at x =", x_values[i])
+  )
+}
+```
+
+The plots show the transition of the conditional density.
+We can see that for x = 0.1 and 0.25 the density is unimodal but for 0.5 and 0.75 it becomes
+bimodal where for x = 0.75 it becomes more pronounced
